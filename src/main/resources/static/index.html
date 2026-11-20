@@ -1,0 +1,119 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>FPT Employee Manager</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 760px; margin: 30px auto; }
+        h1 { color: #f26f21; }
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+        th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
+        th { background: #f26f21; color: #fff; }
+        form { background: #f6f6f6; padding: 15px; border-radius: 6px; }
+        input { padding: 6px; margin-right: 8px; }
+        button { padding: 6px 12px; cursor: pointer; }
+        #message { margin-top: 12px; font-weight: bold; }
+        .ok { color: green; } .err { color: red; }
+    </style>
+</head>
+<body>
+<h1>FPT Employee Manager</h1>
+
+<form id="empForm">
+    <input type="number" id="id" placeholder="ID (for update)" readonly>
+    <input type="text" id="name" placeholder="Name" required>
+    <input type="number" id="salary" placeholder="Salary" step="0.01" min="0" required>
+    <button type="button" onclick="addEmployee()">Add</button>
+    <button type="button" onclick="updateEmployee()">Update</button>
+    <button type="button" onclick="clearForm()">Clear</button>
+</form>
+
+<div id="message"></div>
+
+<button onclick="loadEmployees()" style="margin-top:15px">Reload list</button>
+<table>
+    <thead><tr><th>ID</th><th>Name</th><th>Salary</th><th>Action</th></tr></thead>
+    <tbody id="tbody"></tbody>
+</table>
+
+<script>
+    const API = '/api/employees';
+
+    function show(msg, ok) {
+        const el = document.getElementById('message');
+        el.textContent = msg;
+        el.className = ok ? 'ok' : 'err';
+    }
+
+    function readForm() {
+        return {
+            id: parseInt(document.getElementById('id').value) || 0,
+            name: document.getElementById('name').value.trim(),
+            salary: parseFloat(document.getElementById('salary').value)
+        };
+    }
+
+    function clearForm() {
+        document.getElementById('empForm').reset();
+        document.getElementById('id').value = '';
+    }
+
+    // getEmployees
+    async function loadEmployees() {
+        try {
+            const res = await fetch(API);
+            const data = await res.json();
+            if (!res.ok) { show(data.error, false); return; }
+            const tbody = document.getElementById('tbody');
+            tbody.innerHTML = '';
+            data.forEach(e => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `<td>${e.id}</td><td></td><td>${e.salary}</td>
+                                <td><button>Edit</button></td>`;
+                tr.children[1].textContent = e.name;          // avoids HTML injection
+                tr.querySelector('button').onclick = () => {
+                    document.getElementById('id').value = e.id;
+                    document.getElementById('name').value = e.name;
+                    document.getElementById('salary').value = e.salary;
+                };
+                tbody.appendChild(tr);
+            });
+            show('Loaded ' + data.length + ' employee(s).', true);
+        } catch (err) {
+            show('Cannot reach the service: ' + err, false);
+        }
+    }
+
+    // addEmployees
+    async function addEmployee() {
+        const e = readForm();
+        if (!e.name || isNaN(e.salary)) { show('Name and salary are required.', false); return; }
+        const res = await fetch(API, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: e.name, salary: e.salary })
+        });
+        const data = await res.json();
+        if (res.ok) { show('Added employee with id ' + data.id, true); clearForm(); loadEmployees(); }
+        else show(data.error, false);
+    }
+
+    // updateEmployee
+    async function updateEmployee() {
+        const e = readForm();
+        if (!e.id) { show('Click "Edit" on a row first to choose an employee.', false); return; }
+        if (!e.name || isNaN(e.salary)) { show('Name and salary are required.', false); return; }
+        const res = await fetch(API, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(e)
+        });
+        const data = await res.json();
+        if (res.ok) { show('Updated employee ' + data.id, true); clearForm(); loadEmployees(); }
+        else show(data.error, false);
+    }
+
+    loadEmployees();
+</script>
+</body>
+</html>
